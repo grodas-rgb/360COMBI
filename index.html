@@ -1,0 +1,603 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  ClipboardCheck, 
+  History, 
+  Plus, 
+  Save, 
+  Trash2, 
+  Truck, 
+  FileText, 
+  CheckCircle2, 
+  AlertCircle,
+  Clock,
+  User,
+  Hash,
+  ArrowLeft,
+  Printer
+} from 'lucide-react';
+
+// --- Constantes y Datos Iniciales ---
+const APP_ID = "combi-inspection-v1";
+
+const INITIAL_FORM_STATE = {
+  fecha: new Date().toISOString().split('T')[0],
+  piloto: "",
+  vehiculo: "",
+  placa: "",
+  kilometraje: "",
+  equipo: {
+    llantaRepuesto: false,
+    radio: false,
+    candadoFurgon: false,
+    herramientas: false,
+    alfombras: false,
+    stopIzquierdo: false,
+    stopDerecho: false,
+    extintor: false, // Cambio: taponGas por extintor
+    valijaHerramientas: false,
+    silvinIzquierdo: false,
+    silvinDerecho: false,
+    pideviasIzquierdo: false,
+    calcomaniaAño: false,
+    tarjetaCirculacion: false,
+    retrovisorIzquierdo: false,
+    retrovisorDerecho: false,
+    retrovisorInterior: false,
+    plumillas: false,
+    pideviasDerecho: false,
+    taponRadiador: false,
+    alfombraFurgon: false
+  },
+  combustibleSalida: "1/2",
+  combustibleEntrada: "1/2",
+  observaciones: "",
+  danosVisuales: [] 
+};
+
+const FUEL_OPTIONS = ["FULL", "3/4", "1/2", "1/4", "R"];
+
+export default function App() {
+  const [view, setView] = useState('new'); 
+  const [inspections, setInspections] = useState([]);
+  const [currentForm, setCurrentForm] = useState(INITIAL_FORM_STATE);
+  const [selectedInspection, setSelectedInspection] = useState(null);
+  const [correlative, setCorrelative] = useState(1001);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(`${APP_ID}_history`);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      setInspections(parsed);
+      if (parsed.length > 0) {
+        const lastId = Math.max(...parsed.map(i => i.id));
+        setCorrelative(lastId + 1);
+      }
+    }
+  }, []);
+
+  const saveInspection = () => {
+    if (!currentForm.piloto || !currentForm.placa) {
+      alert("Por favor complete al menos el nombre del piloto y la placa.");
+      return;
+    }
+
+    const newEntry = {
+      ...currentForm,
+      id: correlative,
+      timestamp: new Date().toLocaleString()
+    };
+
+    const updatedHistory = [newEntry, ...inspections];
+    setInspections(updatedHistory);
+    localStorage.setItem(`${APP_ID}_history`, JSON.stringify(updatedHistory));
+    setCorrelative(correlative + 1);
+    
+    setCurrentForm({...INITIAL_FORM_STATE, fecha: new Date().toISOString().split('T')[0]});
+    setView('history');
+  };
+
+  const deleteInspection = (id) => {
+    const updated = inspections.filter(i => i.id !== id);
+    setInspections(updated);
+    localStorage.setItem(`${APP_ID}_history`, JSON.stringify(updated));
+  };
+
+  const handleDiagramClick = (e, section) => {
+    if (view !== 'new') return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    
+    setCurrentForm(prev => ({
+      ...prev,
+      danosVisuales: [...prev.danosVisuales, { x, y, section }]
+    }));
+  };
+
+  const clearLastMark = () => {
+    setCurrentForm(prev => ({
+      ...prev,
+      danosVisuales: prev.danosVisuales.slice(0, -1)
+    }));
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-10">
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+               <div className="text-3xl font-black tracking-tighter flex items-center">
+                  <span className="text-blue-600">COM</span>
+                  <span className="text-red-500">BI</span>
+               </div>
+               <div className="absolute -bottom-1 left-0 w-full h-1 bg-gradient-to-r from-blue-600 to-red-500 rounded-full"></div>
+            </div>
+            <div className="h-8 w-px bg-slate-200 mx-2"></div>
+            <h1 className="text-lg font-bold text-slate-700 hidden sm:block">Revisión 360° Vehicular</h1>
+          </div>
+
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setView('new')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${view === 'new' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'}`}
+            >
+              <Plus size={18} />
+              <span className="hidden sm:inline">Nueva</span>
+            </button>
+            <button 
+              onClick={() => setView('history')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${view === 'history' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'}`}
+            >
+              <History size={18} />
+              <span className="hidden sm:inline">Historial</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-5xl mx-auto px-4 mt-6">
+        {view === 'new' && (
+          <InspectionForm 
+            form={currentForm} 
+            setForm={setCurrentForm} 
+            onSave={saveInspection} 
+            correlative={correlative}
+            handleDiagramClick={handleDiagramClick}
+            clearLastMark={clearLastMark}
+          />
+        )}
+
+        {view === 'history' && (
+          <HistoryView 
+            inspections={inspections} 
+            onView={(ins) => { setSelectedInspection(ins); setView('detail'); }} 
+            onDelete={deleteInspection}
+          />
+        )}
+
+        {view === 'detail' && selectedInspection && (
+          <InspectionDetail 
+            data={selectedInspection} 
+            onBack={() => setView('history')} 
+          />
+        )}
+      </main>
+    </div>
+  );
+}
+
+function InspectionForm({ form, setForm, onSave, correlative, handleDiagramClick, clearLastMark }) {
+  const updateField = (field, value) => setForm({...form, [field]: value});
+  const updateEquip = (key) => setForm({
+    ...form, 
+    equipo: {...form.equipo, [key]: !form.equipo[key]}
+  });
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <section className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800">
+            <FileText className="text-blue-600" /> Datos de Identificación
+          </h2>
+          <div className="bg-slate-100 px-3 py-1 rounded-full text-slate-600 text-sm font-mono font-bold">
+            Correlativo: #{correlative}
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Input label="Fecha" type="date" value={form.fecha} onChange={(e) => updateField('fecha', e.target.value)} />
+          <Input label="Nombre del Piloto" placeholder="Ej. Juan Pérez" value={form.piloto} onChange={(e) => updateField('piloto', e.target.value)} />
+          <Input label="Vehículo" placeholder="Ej. Hino 300 / Izusu" value={form.vehiculo} onChange={(e) => updateField('vehiculo', e.target.value)} />
+          <Input label="No. Placa" placeholder="P-000XXX" value={form.placa} onChange={(e) => updateField('placa', e.target.value)} />
+          <Input label="Kilometraje" type="number" placeholder="000000" value={form.kilometraje} onChange={(e) => updateField('kilometraje', e.target.value)} />
+        </div>
+      </section>
+
+      <section className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-slate-800">
+          <ClipboardCheck className="text-green-600" /> Detalle de Equipo y Herramientas
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-3 gap-x-6">
+          {Object.keys(form.equipo).map((key) => (
+            <label key={key} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors border border-transparent hover:border-slate-100">
+              <input 
+                type="checkbox" 
+                checked={form.equipo[key]} 
+                onChange={() => updateEquip(key)}
+                className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm font-medium text-slate-700 capitalize">
+                {key.replace(/([A-Z])/g, ' $1').replace('Año', ' del Año').trim()}
+              </span>
+            </label>
+          ))}
+        </div>
+      </section>
+
+      <section className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-slate-800">
+          <Truck className="text-red-500" /> Nivel de Combustible
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <FuelSelector 
+            label="SALIDA (AM)" 
+            value={form.combustibleSalida} 
+            onChange={(val) => updateField('combustibleSalida', val)} 
+          />
+          <FuelSelector 
+            label="ENTRADA (PM)" 
+            value={form.combustibleEntrada} 
+            onChange={(val) => updateField('combustibleEntrada', val)} 
+          />
+        </div>
+      </section>
+
+      <section className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800">
+            <Truck className="text-blue-500" /> Inspección Visual 360°
+          </h2>
+          {form.danosVisuales.length > 0 && (
+            <button 
+              onClick={clearLastMark}
+              className="text-xs flex items-center gap-1 text-red-500 hover:text-red-700 font-bold uppercase tracking-wider"
+            >
+              <Trash2 size={14} /> Borrar última marca
+            </button>
+          )}
+        </div>
+        <p className="text-sm text-slate-500 mb-6 italic">Haz clic sobre los diagramas para marcar daños, golpes o abolladuras.</p>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+            <div className="space-y-8">
+                <div className="relative border border-slate-100 rounded-lg p-4 bg-slate-50/50" onClick={(e) => handleDiagramClick(e, 'lat_d')}>
+                    <span className="absolute top-2 left-2 text-[10px] font-bold text-slate-400 uppercase">Lateral Derecho</span>
+                    <TruckSVG side="right" marks={form.danosVisuales.filter(m => m.section === 'lat_d')} />
+                </div>
+                <div className="relative border border-slate-100 rounded-lg p-4 bg-slate-50/50 max-w-[250px] mx-auto" onClick={(e) => handleDiagramClick(e, 'frontal')}>
+                    <span className="absolute top-2 left-2 text-[10px] font-bold text-slate-400 uppercase">Frontal</span>
+                    <TruckSVG side="front" marks={form.danosVisuales.filter(m => m.section === 'frontal')} />
+                </div>
+            </div>
+            <div className="space-y-8">
+                <div className="relative border border-slate-100 rounded-lg p-4 bg-slate-50/50" onClick={(e) => handleDiagramClick(e, 'lat_i')}>
+                    <span className="absolute top-2 left-2 text-[10px] font-bold text-slate-400 uppercase">Lateral Izquierdo</span>
+                    <TruckSVG side="left" marks={form.danosVisuales.filter(m => m.section === 'lat_i')} />
+                </div>
+                <div className="relative border border-slate-100 rounded-lg p-4 bg-slate-50/50 max-w-[250px] mx-auto" onClick={(e) => handleDiagramClick(e, 'trasero')}>
+                    <span className="absolute top-2 left-2 text-[10px] font-bold text-slate-400 uppercase">Trasero</span>
+                    <TruckSVG side="back" marks={form.danosVisuales.filter(m => m.section === 'trasero')} />
+                </div>
+            </div>
+        </div>
+      </section>
+
+      <section className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        <h2 className="text-xl font-bold mb-4 text-slate-800">Observaciones</h2>
+        <textarea 
+          className="w-full h-32 p-4 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+          placeholder="Describa cualquier novedad no especificada en el checklist..."
+          value={form.observaciones}
+          onChange={(e) => updateField('observaciones', e.target.value)}
+        ></textarea>
+        
+        <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-end">
+            <button 
+              onClick={() => {
+                if(confirm("¿Seguro que desea limpiar el formulario?")) {
+                  setForm({...INITIAL_FORM_STATE, fecha: new Date().toISOString().split('T')[0]});
+                }
+              }}
+              className="px-6 py-3 border border-slate-200 text-slate-500 rounded-lg font-bold hover:bg-slate-50 transition-colors"
+            >
+              Limpiar Formulario
+            </button>
+            <button 
+              onClick={onSave}
+              className="px-8 py-3 bg-blue-600 text-white rounded-lg font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
+            >
+              <Save size={20} /> Guardar Revisión
+            </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function Input({ label, ...props }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">{label}</label>
+      <input 
+        className="px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+        {...props}
+      />
+    </div>
+  );
+}
+
+function FuelSelector({ label, value, onChange }) {
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-black text-slate-700 text-center">{label}</h3>
+      <div className="flex justify-between items-center gap-1">
+        {FUEL_OPTIONS.map(opt => (
+          <button
+            key={opt}
+            onClick={() => onChange(opt)}
+            className={`flex-1 py-3 px-1 text-xs font-bold rounded-lg border transition-all ${
+              value === opt 
+              ? 'bg-blue-600 text-white border-blue-600 shadow-md ring-2 ring-blue-100' 
+              : 'bg-slate-50 text-slate-500 border-slate-100 hover:border-slate-300'
+            }`}
+          >
+            {opt}
+          </button>
+        ))}
+      </div>
+      <div className="h-2 bg-slate-100 rounded-full overflow-hidden mt-2">
+        <div 
+          className="h-full bg-gradient-to-r from-red-500 via-yellow-400 to-green-500 transition-all duration-700"
+          style={{ 
+            width: value === 'FULL' ? '100%' : value === '3/4' ? '75%' : value === '1/2' ? '50%' : value === '1/4' ? '25%' : '10%',
+            opacity: value === 'R' ? 0.5 : 1
+          }}
+        ></div>
+      </div>
+    </div>
+  );
+}
+
+function HistoryView({ inspections, onView, onDelete }) {
+  return (
+    <div className="space-y-4 animate-in fade-in duration-500">
+      <div className="flex justify-between items-center mb-2">
+        <h2 className="text-2xl font-black text-slate-800">Historial de Revisiones</h2>
+        <span className="text-slate-500 text-sm font-medium">{inspections.length} registros encontrados</span>
+      </div>
+      
+      {inspections.length === 0 ? (
+        <div className="bg-white p-12 rounded-xl border border-dashed border-slate-300 flex flex-col items-center gap-4 text-slate-400">
+          <Truck size={64} strokeWidth={1} />
+          <p className="text-lg font-medium">No hay revisiones guardadas todavía.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {inspections.map(item => (
+            <div key={item.id} className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm hover:shadow-md transition-shadow group relative">
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="bg-blue-50 text-blue-700 text-[10px] font-black px-2 py-0.5 rounded uppercase">#{item.id}</span>
+                    <span className="text-slate-400 text-xs flex items-center gap-1 font-medium"><Clock size={12} /> {item.timestamp}</span>
+                  </div>
+                  <h3 className="font-bold text-slate-800 text-lg leading-tight">{item.piloto}</h3>
+                  <p className="text-slate-500 text-sm font-medium">{item.placa} • {item.vehiculo}</p>
+                </div>
+                <div className="text-right">
+                    <div className={`text-xs font-bold px-2 py-1 rounded-md ${item.danosVisuales.length > 0 ? 'bg-amber-50 text-amber-700' : 'bg-green-50 text-green-700'}`}>
+                        {item.danosVisuales.length > 0 ? `${item.danosVisuales.length} Daños` : 'Sin daños'}
+                    </div>
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-between border-t border-slate-100 pt-4 mt-2">
+                <button 
+                  onClick={() => onView(item)}
+                  className="text-blue-600 hover:text-blue-800 text-sm font-bold flex items-center gap-1"
+                >
+                  <FileText size={16} /> Ver detalles
+                </button>
+                <button 
+                  onClick={() => confirm("¿Eliminar este registro?") && onDelete(item.id)}
+                  className="text-slate-300 hover:text-red-500 transition-colors"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InspectionDetail({ data, onBack }) {
+  return (
+    <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden mb-10 animate-in zoom-in-95 duration-300">
+      <div className="bg-slate-900 text-white p-6 flex justify-between items-center">
+        <div className="flex items-center gap-4">
+          <button onClick={onBack} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+            <ArrowLeft />
+          </button>
+          <div>
+            <h2 className="text-xl font-bold">Detalle de Revisión #{data.id}</h2>
+            <p className="text-slate-400 text-sm">{data.timestamp}</p>
+          </div>
+        </div>
+        <button onClick={() => window.print()} className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold transition-all">
+          <Printer size={18} /> Imprimir
+        </button>
+      </div>
+
+      <div className="p-8 space-y-8 print:p-4">
+        <div className="hidden print:flex justify-between items-center mb-8 border-b pb-4">
+            <div className="text-3xl font-black tracking-tighter">
+                <span className="text-blue-600">COM</span>
+                <span className="text-red-500">BI</span>
+            </div>
+            <div className="text-right">
+                <h1 className="text-xl font-bold">REVISION 360 DIARIA</h1>
+                <p className="text-sm">Correlativo: #{data.id}</p>
+            </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <DetailItem label="Piloto" value={data.piloto} />
+            <DetailItem label="Placa" value={data.placa} />
+            <DetailItem label="Vehículo" value={data.vehiculo} />
+            <DetailItem label="Kilometraje" value={data.kilometraje} />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-slate-100 pt-8">
+            <div>
+                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-widest">
+                    <ClipboardCheck size={16} className="text-green-600" /> Estado de Equipo
+                </h3>
+                <div className="grid grid-cols-2 gap-y-2">
+                    {Object.entries(data.equipo).map(([key, val]) => (
+                        <div key={key} className="flex items-center gap-2 text-sm">
+                            {val ? <CheckCircle2 size={14} className="text-green-500" /> : <AlertCircle size={14} className="text-slate-300" />}
+                            <span className={val ? 'text-slate-700' : 'text-slate-400'}>{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+            <div className="space-y-6">
+                <div>
+                    <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-widest">
+                        <Truck size={16} className="text-blue-600" /> Combustible
+                    </h3>
+                    <div className="flex gap-4">
+                        <div className="flex-1 bg-slate-50 p-4 rounded-xl border border-slate-100 text-center">
+                            <span className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Salida (AM)</span>
+                            <span className="text-2xl font-black text-blue-600">{data.combustibleSalida}</span>
+                        </div>
+                        <div className="flex-1 bg-slate-50 p-4 rounded-xl border border-slate-100 text-center">
+                            <span className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Entrada (PM)</span>
+                            <span className="text-2xl font-black text-red-500">{data.combustibleEntrada}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div>
+                    <h3 className="font-bold text-slate-800 mb-2 uppercase text-xs tracking-widest">Observaciones</h3>
+                    <p className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm text-slate-600 min-h-[80px]">
+                        {data.observaciones || "Sin observaciones adicionales."}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div className="border-t border-slate-100 pt-8">
+            <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2 uppercase text-xs tracking-widest">
+                <Truck size={16} className="text-blue-600" /> Inspección de Carrocería
+            </h3>
+            <div className="grid grid-cols-2 gap-4 opacity-75">
+                <div className="border rounded-lg p-2"><TruckSVG side="right" marks={data.danosVisuales.filter(m => m.section === 'lat_d')} /></div>
+                <div className="border rounded-lg p-2"><TruckSVG side="left" marks={data.danosVisuales.filter(m => m.section === 'lat_i')} /></div>
+            </div>
+        </div>
+
+        <div className="mt-12 pt-12 border-t border-slate-100 grid grid-cols-2 gap-12">
+            <div className="text-center">
+                <div className="border-t border-slate-300 w-full mx-auto mt-8 mb-2"></div>
+                <p className="text-xs font-bold text-slate-500 uppercase">Firma del Piloto</p>
+            </div>
+            <div className="text-center">
+                <div className="border-t border-slate-300 w-full mx-auto mt-8 mb-2"></div>
+                <p className="text-xs font-bold text-slate-500 uppercase">Revisado por Operaciones</p>
+            </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DetailItem({ label, value }) {
+  return (
+    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+      <span className="block text-[10px] font-bold text-slate-400 uppercase mb-0.5 tracking-tighter">{label}</span>
+      <span className="text-sm font-bold text-slate-800 truncate block">{value || "---"}</span>
+    </div>
+  );
+}
+
+// --- Gráfico SVG del Camión ---
+function TruckSVG({ side, marks = [] }) {
+  const renderMarks = () => marks.map((m, i) => (
+    <circle key={i} cx={`${m.x}%`} cy={`${m.y}%`} r="3" fill="#ef4444" className="animate-pulse" />
+  ));
+
+  if (side === 'left' || side === 'right') {
+    const isLeft = side === 'left';
+    return (
+      <svg viewBox="0 0 200 80" className="w-full h-auto drop-shadow-sm select-none">
+        <g 
+          fill="none" 
+          stroke="#64748b" 
+          strokeWidth="1.5"
+          transform={isLeft ? "scale(-1, 1) translate(-200, 0)" : ""}
+        >
+          {/* Cabina */}
+          <path d="M10,60 L40,60 L50,30 L20,30 Z" />
+          <rect x="25" y="40" width="15" height="15" />
+          {/* Furgon */}
+          <rect x="55" y="15" width="130" height="45" />
+          {/* Chasis y Llantas */}
+          <line x1="40" y1="60" x2="185" y2="60" />
+          <circle cx="35" cy="65" r="7" />
+          <circle cx="150" cy="65" r="7" />
+          <circle cx="170" cy="65" r="7" />
+          {renderMarks()}
+        </g>
+      </svg>
+    );
+  }
+
+  if (side === 'front') {
+    return (
+      <svg viewBox="0 0 100 80" className="w-full h-auto drop-shadow-sm select-none">
+        <g fill="none" stroke="#64748b" strokeWidth="1.5">
+          <rect x="20" y="10" width="60" height="50" rx="4" />
+          <rect x="25" y="20" width="50" height="20" rx="2" />
+          <rect x="25" y="45" width="10" height="5" />
+          <rect x="65" y="45" width="10" height="5" />
+          <circle cx="30" cy="65" r="7" />
+          <circle cx="70" cy="65" r="7" />
+          <line x1="20" y1="60" x2="80" y2="60" />
+          {renderMarks()}
+        </g>
+      </svg>
+    );
+  }
+
+  if (side === 'back') {
+    return (
+      <svg viewBox="0 0 100 80" className="w-full h-auto drop-shadow-sm select-none">
+        <g fill="none" stroke="#64748b" strokeWidth="1.5">
+          <rect x="15" y="10" width="70" height="50" />
+          <line x1="50" y1="10" x2="50" y2="60" />
+          <circle cx="30" cy="65" r="7" />
+          <circle cx="70" cy="65" r="7" />
+          {renderMarks()}
+        </g>
+      </svg>
+    );
+  }
+
+  return null;
+}
